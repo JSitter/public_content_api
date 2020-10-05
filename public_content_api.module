@@ -1,0 +1,454 @@
+<?php
+
+/*
+ *hook_menu jumping in your window creating pages
+ */
+function public_content_api_menu() {
+ $items = array();
+  $items['admin/config/administration/content_search'] = array(
+    'title' => 'Search Content Types',
+    'description' => 'Configuration for Content Search module',
+    'page callback' => 'drupal_get_form',
+    
+    // passes name of form defined in function public_content_api_form() to drupal_get_form function
+    'page arguments' => array('public_content_api_settings_form'),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+  
+  $items['search'] = array(
+    'title' => '',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'public_content_api_process_query',
+    //page_arguments' => 'public_content_api_form',
+    'access callback' => TRUE,
+  );
+
+ return $items;
+}
+
+
+/*
+ *Module Configuration Page
+ */
+function public_content_api_settings_form ($form, &$form_state){
+//get node types through drupal function node_get_types()
+  $types = node_type_get_types();
+    
+// store output in $options array
+  foreach ($types as $type) {
+    $options[$type -> type] = t($type -> name);
+  }
+  
+//replace spaces with - for use in text field submission  
+$text_field_search_box = str_replace (" ", "-", $options);
+$selected_search_cat = str_replace (" ", "-", variable_get('public_content_api_types'));
+
+//database table that stores node Titles
+// TITLE TABLE
+$form['public_content_api_titles'] = array (
+      '#type' => 'textfield',
+      '#size' => 60,
+      '#maxlength' => 128,
+      '#title' => t('Table Which Stores Titles'),
+      '#default_value' => variable_get('public_content_api_titles')
+      
+    );
+
+   //LIST OF AVAILABLE CONTENT TYPES
+  $form['public_content_api_types'] = array (
+      '#type' => 'checkboxes',
+      '#options' => $options,
+      '#title' => t('Content types to search'),
+      '#default_value' => variable_get('public_content_api_types'),
+      
+    );
+  
+  //TABLE NAME ASSOCIATED WITH CONTENT TYPE
+  foreach($selected_search_cat as $type){
+   if ($type != "0") {
+   $form['public_content_api_type_'.$type] = array (
+      '#type' => 'textfield',
+      '#size' => 60,
+      '#maxlength' => 128,
+      '#title' => t('Search table for '.$type),
+      '#default_value' => variable_get('public_content_api_type_'.$type),
+    );
+   
+  // COLUMN NAME containing year data  
+   $form['public_content_api_field_'.$type] = array (
+      '#type' => 'textfield',
+      '#size' => 60,
+      '#maxlength' => 128,
+      '#title' => t('Search field for '.$type),
+      '#default_value' => variable_get('public_content_api_field_'.$type),
+    );
+   }
+  }
+  
+
+   
+   return system_settings_form($form);
+}
+
+/*
+ *Search Page Form
+ */
+function public_content_api_form($form, &$form_state) {
+    $search_content_types = variable_get('public_content_api_types'); //get content types available for search
+   // $content_selections = array('antonians','article');
+   if (isset($search_content_types)){
+    foreach ($search_content_types as $type) {
+      if ($type != "0") {
+    $search_type[$type] = t($type);
+      }
+   }
+   } else { print'No Content Type Available - Please configure search in module Config';}
+ 
+   /*   Enable THIS Block by uncommenting line
+  //Check boxes to select content types to search
+  $form['content_selection'] = array(
+    '#type' => 'checkboxes',
+    '#options' => $search_type,
+    '#title' => 'Search',
+   // '#default_value' => $content_selections
+  );
+ //      */
+  $form['public_content_api_user_search'] = array(
+    '#type' => 'textfield',
+    '#size' => 4,
+    '#maxlength' => 4,
+    '#title' => t('Year'),
+    '#attributes' => array(
+			   'onblur' => "if (this.value == '') {this.value = 'Year'}",
+			   'onfocus' => "if (this.value == 'Year') {this.value = ''}"
+			  )
+   
+  );
+  $form['public_content_api_submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Search'),
+    '#submit' => array('public_content_api_process_submission')
+  );
+  return $form;
+}
+
+
+/*
+ *Function called by search_form #submit
+ */
+function public_content_api_process_submission($form, &$form_state) {
+//get form data
+    $year = $form_state['values']['public_content_api_user_search'];
+  // $content = variable_get('public_content_api_types');
+    $search_content_types = variable_get('public_content_api_types');
+    $total=0;
+    $count = 0;
+    $ct = '';
+// Prepare to convert $content array to CSV
+    //count number of valid content types
+    foreach($search_content_types as $value){
+	if($value !="0")
+	    $total++;
+    }
+   
+
+      
+//CSV conversion 
+ 
+   foreach ($search_content_types as $value) {
+    ++$count;
+    if($value != "0") {
+	 $ct .= $value;    
+    }
+    if ($count < $total){
+	 $ct .= ',';
+    }
+   }
+    
+// Drupal Redirect to add search query to URL   
+   $form_state['redirect'] = array(
+	'search',
+	    array(
+		'query' => array(
+		    'yr' => $year,
+		    'ct' => $ct
+		),
+	    ),
+    );
+}
+
+/*
+ * --BASIC PAGE LEVEL--
+ * Needs to: RUN SEARCH QUERY, and Send result multi-array to page render function.
+ */
+function public_content_api_process_query() {
+//clear out any previous messages from drupal_set_message
+    drupal_get_messages();
+//get search data from url and store in array $search
+    $search = public_content_api_convert_results();
+    
+// **** RUN TESTS HERE ****// */
+
+
+//submit to search function for validation and searching save as $results  
+    $results = public_content_api_year_search($search);
+	//$results map: 
+    
+//render form and page
+    $getsi = drupal_get_form('public_content_api_form');
+    $page_form = drupal_render($getsi);
+    $pageout = public_content_api_page_render($page_form, $results);
+    
+    return $pageout;
+
+}
+
+/*
+ *Search Validation Function
+ */
+function public_content_api_validate_search($ct, $yr){
+    if( strlen($yr) == 0 && strlen($ct) == 0){
+	$er = null;
+    } elseif(ctype_digit($yr) && $yr>1800 && $yr<2020 && public_content_api_test_ct($ct)){
+	$er = null;
+	
+	return true;
+    } elseif (!isset($yr) && !isset($ct)) {
+	$er = null;
+	
+	return false;
+    } elseif (!ctype_digit($yr)) {
+	drupal_set_message(t('Please use a 4 digit numerical year such as 1945'), 'error');
+	
+	return false;
+    } elseif (strlen($ct) == 0) {
+	drupal_set_message(t('Please select content to search'), 'error');
+	
+	return false;
+    }
+    elseif (!public_content_api_test_ct($ct)) {
+	drupal_set_message(t("Content type \"$ct\" doesn't exist"), 'error');
+	return false;
+    }
+    elseif ($ct < 1800 || $ct > 2020) {
+	drupal_set_message(t('No records for indicated Year - Please choose a year between 1896 and current year'), 'error');
+	return false;
+    }
+    else {
+	drupal_set_message(t('Critical Failure'), 'error');
+	return false;
+    }
+}
+
+/*
+ *Convert global $_GET variables yr, and ct from CSV values and returns array or NULL
+ */
+function public_content_api_convert_results() {
+//Gets search results from URL return as array or null
+  if (isset($_GET['yr']) && isset($_GET['ct'])) {
+   $output = array(
+	'yr' => check_plain($_GET['yr']),
+	'ct' => explode(',',check_plain($_GET['ct']))
+	);
+  } else {
+   $output = null;
+  }
+  return $output;
+}
+
+
+/*
+ *Page Render Function
+ */
+function public_content_api_page_render($form, $result = null){
+ 
+  //creates wrapper div to bind all
+  $outputpage = "<div id='public_content_api_wrapper'>";
+    $outputpage .= "<div id='search-title'><h1>Search by Year</h1></div>";
+    $outputpage .= "<div id='search-desc'>Enter Year Here:</div>";
+    
+    $outputpage .="<div id='form_wrapper'>";
+      
+      //form search page data
+      
+      $outputpage .= $form;
+      
+    $outputpage .="</div>";
+    
+    //result wrapper
+	$outputpage .= "<div id='public_content_api_result_wrapper'>";
+    
+    //creates result div
+	$outputpage .= "<div id='public_content_api_results'>";
+	
+	
+    
+    //clear div to mark bottom of page content
+     $outputpage .= "<div class='clearall'></div>";
+     
+    //Check to see if there are search results
+      if (!isset($result) || $result==''){
+	 $outputpage .= "";
+	 
+	
+	
+      } else{
+	
+	
+	//search results
+	$outputpage .= $result;
+      }
+      
+      //closing tag for result div
+	$outputpage .= "</div>";
+    
+	$outputpage .= "</div>"; // closes  result wrapper div
+	
+  //closing tag for wrapper div
+  $outputpage .= "</div>";
+    
+    return $outputpage;
+}
+
+/*
+ * Gets values from URL and makes default form values
+ */
+function public_content_api_form_alter(&$form, $form_state, $form_id){
+
+	$content = public_content_api_convert_results();//Get global values in url and format as array
+   
+	if ($form_id == 'public_content_api_form') {
+	    $form['public_content_api_user_search']['#title_display'] = 'invisible';
+	    if (isset($content)){
+		$form['content_selection']['#default_value'] = $content['ct'];
+		$form['public_content_api_user_search']['#default_value'] = $content['yr'];
+	    } else{
+		$form['public_content_api_user_search']['#default_value'] = 'Year';
+		$form['content_selection']['#default_value'] = variable_get('public_content_api_types');
+		}
+	}
+
+}
+
+
+
+
+/*
+ * Takes array of values $query returns results
+ */
+function public_content_api_year_search(&$query=array()) {
+    /* $query requirements:
+     * $query['yr'] => Search Query
+     * $query['ct'] => Array of Content Types
+     */
+    $val= array();
+    $sResults = 0;
+    $total=-1;
+    
+    //Variable to hold data to be returned by function
+    $result = '';
+    $header = array(t('Entry'), t('Year'), t('Type of Content'));
+    $dbreturn = array();
+    $rows = array();
+    $yr = $query['yr'];
+	if($query['ct']==''){
+	    // Dont output anything if content type isn't set
+	    return $result; 
+	} elseif(isset($query['ct'])) {
+	    foreach ($query['ct'] as $ct) {
+		//Validate input	    
+		if (public_content_api_validate_search($ct,$yr)) {
+		    $ct_table = variable_get('public_content_api_type_'.$ct); //Table in which content type data is stored
+		    $ct_field = variable_get('public_content_api_field_'.$ct); //Content type field to search
+		    $dbreturn = public_content_api_mysql_query($ct, $yr, $rows);
+		    $total++; //This counts the number of content types that are searched in order to keep error messages down
+		    if ($dbreturn=="0"){
+			//drupal_set_message(t("No $ct found."), 'error');
+			$sResults++;
+		    }
+		   
+		}
+	    }
+	    if(count($rows)>0){
+		$result = public_content_api_table_display ($header, $rows);
+	    } else {$result = '';}
+	}
+    
+    //if there are no results say so
+    if($sResults>$total){
+	drupal_set_message(t("No Results for $yr"), 'error');
+    }
+    
+    return $result;    
+}
+
+/*
+ *Test for acceptable Content Type value
+ */
+function public_content_api_test_ct($ct) {
+    
+    $availablect = variable_get('public_content_api_types');
+    if (in_array($ct, $availablect, true)) {
+	return true;
+    } else {
+	return false;
+	}
+}
+
+/*
+ *MySQL Search Query --
+*/
+function public_content_api_mysql_query($ct, $yr, &$out){	
+    $return = false;
+    $count = 0;
+    //Base Url
+    $burl = $GLOBALS['base_url'];
+
+    $ans = array();
+    //DB Content Type Table Value: This table contains content type, year, entity_id  
+    $ctTable = variable_get('public_content_api_type_'.$ct);
+    $qry = array();
+    //DB Title Table Value: This table contains the title of given NID
+    $tlTable = variable_get('public_content_api_titles');
+
+    // NID Columns
+    $ctNID = 'entity_id'; // NID column for Content Type Table
+    $tlNID = 'nid'; // NID column for Title Table
+    
+    //  Year Column Value in Content Type Table
+    $ctYear = variable_get('public_content_api_field_'.$ct);
+    
+    //  Content Type Column from Content Type Table
+    $ctCt = 'bundle';
+    
+    // Title Column Value in Title Table
+    $tlTitle = 'title';
+    
+    // MySql Query to get NID, and Title
+    $qry = "SELECT $tlTable.$tlTitle, $tlTable.$tlNID FROM
+	    $tlTable INNER JOIN $ctTable
+	    ON $tlTable.$tlNID=$ctTable.$ctNID
+	    WHERE $ctTable.$ctYear = '$yr' AND $ctTable.$ctCt = '$ct'
+	    ORDER BY $tlTable.$tlNID";
+    
+    //Process DB Return
+    $ans = db_query($qry);
+	foreach ($ans as $dat) {
+	    $count++;
+	    $out[] = array(
+		'link' => "<a href='$burl/node/".$dat->$tlNID."'>".$dat->$tlTitle."</a>",
+		'yr' => $yr,
+		'ct' => $ct
+		);
+	}
+    
+    return $count;
+}
+
+/*
+ *	Drupal Table Rendering Function
+ */
+function public_content_api_table_display ($header, $rows){
+    return theme('table', array('header' => $header,'rows' => $rows));
+}

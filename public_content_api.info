@@ -1,0 +1,5 @@
+name = Public Content API
+description = Provides an API to Access Public Content
+backdrop = 1.x
+type = module
+configure = admin/config/public_api
