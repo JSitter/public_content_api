@@ -5,9 +5,9 @@
  */
 function public_content_api_menu() {
  $items = array();
-  $items['admin/config/administration/content_search'] = array(
-    'title' => 'Search Content Types',
-    'description' => 'Configuration for Content Search module',
+  $items['admin/config/administration/api-config'] = array(
+    'title' => 'Enable API Endpoints',
+    'description' => 'Specify which content types are available',
     'page callback' => 'drupal_get_form',
     
     // passes name of form defined in function public_content_api_form() to drupal_get_form function
@@ -16,7 +16,7 @@ function public_content_api_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
   
-  $items['search'] = array(
+  $items['most-active'] = array(
     'title' => '',
     'type' => MENU_NORMAL_ITEM,
     'page callback' => 'public_content_api_process_query',
@@ -183,8 +183,7 @@ function public_content_api_process_submission($form, &$form_state) {
  * Needs to: RUN SEARCH QUERY, and Send result multi-array to page render function.
  */
 function public_content_api_process_query() {
-//clear out any previous messages from drupal_set_message
-    drupal_get_messages();
+
 //get search data from url and store in array $search
     $search = public_content_api_convert_results();
     
@@ -196,11 +195,15 @@ function public_content_api_process_query() {
 	//$results map: 
     
 //render form and page
-    $getsi = drupal_get_form('public_content_api_form');
-    $page_form = drupal_render($getsi);
-    $pageout = public_content_api_page_render($page_form, $results);
-    
-    return $pageout;
+    // $getsi = drupal_get_form('public_content_api_form');
+    // $page_form = drupal_render($getsi);
+    // $pageout = public_content_api_page_render($page_form, $results);
+    $first = array();
+    $first["sample"] = "One";
+    $second["second"] = "sample";
+    $sampleStructure = array($first, $second);
+    backdrop_json_output($sampleStructure);
+    backdrop_exit();
 
 }
 
