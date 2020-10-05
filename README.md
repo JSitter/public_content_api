@@ -1,7 +1,7 @@
 # Public Content API Module
-This modules is a work in progress which will allow for easily returning content to a headless front end using JSON.
+This module is a work in progress which will allow for the use of the [Backdrop CMS](https://backdropcms.org/) as a backend for a decoupled front end of your choice. It returns the requested data using in JSON for consumption by your front end.
 
-## Pages
+## Planned Pages
 Configuration Page: `/admin/config/administration`.
 
 Planned options:
