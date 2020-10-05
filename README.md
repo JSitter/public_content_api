@@ -1,5 +1,5 @@
 # Public Content API Module
-This module is a work in progress which will allow for the use of the [Backdrop CMS](https://backdropcms.org/) as a backend for a decoupled front end of your choice. It returns the requested data using in JSON for consumption by your front end.
+This module is a work in progress which will allow for the use of the [Backdrop CMS](https://backdropcms.org/) as a backend for a decoupled front end of your choice. It returns the requested data formatted as JSON for easy consumption by your front end.
 
 ## Planned Pages
 Configuration Page: `/admin/config/administration`.
