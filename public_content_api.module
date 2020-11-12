@@ -8,9 +8,9 @@ function public_content_api_menu() {
   $items['admin/config/administration/api-config'] = array(
     'title' => 'Enable API Endpoints',
     'description' => 'Specify which content types are available',
-    'page callback' => 'drupal_get_form',
+    'page callback' => 'backdrop_get_form',
     
-    // passes name of form defined in function public_content_api_form() to drupal_get_form function
+    // passes name of form defined in function public_content_api_form() to backdrop_get_form function
     'page arguments' => array('public_content_api_settings_form'),
     'access arguments' => array('access administration pages'),
     'type' => MENU_NORMAL_ITEM,
@@ -34,6 +34,7 @@ function public_content_api_menu() {
 function public_content_api_settings_form ($form, &$form_state){
 //get node types through drupal function node_get_types()
   $types = node_type_get_types();
+  
     
 // store output in $options array
   foreach ($types as $type) {
@@ -67,22 +68,31 @@ $form['public_content_api_titles'] = array (
   //TABLE NAME ASSOCIATED WITH CONTENT TYPE
   foreach($selected_search_cat as $type){
    if ($type != "0") {
-   $form['public_content_api_type_'.$type] = array (
-      '#type' => 'textfield',
-      '#size' => 60,
-      '#maxlength' => 128,
-      '#title' => t('Search table for '.$type),
-      '#default_value' => variable_get('public_content_api_type_'.$type),
-    );
-   
-  // COLUMN NAME containing year data  
-   $form['public_content_api_field_'.$type] = array (
-      '#type' => 'textfield',
-      '#size' => 60,
-      '#maxlength' => 128,
-      '#title' => t('Search field for '.$type),
-      '#default_value' => variable_get('public_content_api_field_'.$type),
-    );
+    print(statistics_get(1));
+    // Content Type Grouping Title
+    $form[$type] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Calculate most active '.ucfirst($type)),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,  
+      );
+
+    $form[$type]['public_content_api_type_'.$type] = array (
+        '#type' => 'textfield',
+        '#size' => 60,
+        '#maxlength' => 128,
+        '#title' => t('Search table for '.$type),
+        '#default_value' => variable_get('public_content_api_type_'.$type),
+        );
+    
+    // COLUMN NAME containing year data  
+    $form[$type]['public_content_api_field_'.$type] = array (
+        '#type' => 'textfield',
+        '#size' => 60,
+        '#maxlength' => 128,
+        '#title' => t('Search field for '.$type),
+        '#default_value' => variable_get('public_content_api_field_'.$type),
+        );
    }
   }
   
@@ -104,16 +114,7 @@ function public_content_api_form($form, &$form_state) {
       }
    }
    } else { print'No Content Type Available - Please configure search in module Config';}
- 
-   /*   Enable THIS Block by uncommenting line
-  //Check boxes to select content types to search
-  $form['content_selection'] = array(
-    '#type' => 'checkboxes',
-    '#options' => $search_type,
-    '#title' => 'Search',
-   // '#default_value' => $content_selections
-  );
- //      */
+
   $form['public_content_api_user_search'] = array(
     '#type' => 'textfield',
     '#size' => 4,
@@ -132,7 +133,6 @@ function public_content_api_form($form, &$form_state) {
   );
   return $form;
 }
-
 
 /*
  *Function called by search_form #submit
@@ -187,24 +187,15 @@ function public_content_api_process_query() {
 //get search data from url and store in array $search
     $search = public_content_api_convert_results();
     
-// **** RUN TESTS HERE ****// */
-
-
 //submit to search function for validation and searching save as $results  
     $results = public_content_api_year_search($search);
-	//$results map: 
-    
-//render form and page
-    // $getsi = drupal_get_form('public_content_api_form');
-    // $page_form = drupal_render($getsi);
-    // $pageout = public_content_api_page_render($page_form, $results);
+
     $first = array();
     $first["sample"] = "One";
     $second["second"] = "sample";
     $sampleStructure = array($first, $second);
     backdrop_json_output($sampleStructure);
     backdrop_exit();
-
 }
 
 /*
@@ -222,24 +213,24 @@ function public_content_api_validate_search($ct, $yr){
 	
 	return false;
     } elseif (!ctype_digit($yr)) {
-	drupal_set_message(t('Please use a 4 digit numerical year such as 1945'), 'error');
+	backdrop_set_message(t('Please use a 4 digit numerical year such as 1945'), 'error');
 	
 	return false;
     } elseif (strlen($ct) == 0) {
-	drupal_set_message(t('Please select content to search'), 'error');
+	backdrop_set_message(t('Please select content to search'), 'error');
 	
 	return false;
     }
     elseif (!public_content_api_test_ct($ct)) {
-	drupal_set_message(t("Content type \"$ct\" doesn't exist"), 'error');
+	backdrop_set_message(t("Content type \"$ct\" doesn't exist"), 'error');
 	return false;
     }
     elseif ($ct < 1800 || $ct > 2020) {
-	drupal_set_message(t('No records for indicated Year - Please choose a year between 1896 and current year'), 'error');
+	backdrop_set_message(t('No records for indicated Year - Please choose a year between 1896 and current year'), 'error');
 	return false;
     }
     else {
-	drupal_set_message(t('Critical Failure'), 'error');
+	backdrop_set_message(t('Critical Failure'), 'error');
 	return false;
     }
 }
@@ -367,7 +358,7 @@ function public_content_api_year_search(&$query=array()) {
 		    $dbreturn = public_content_api_mysql_query($ct, $yr, $rows);
 		    $total++; //This counts the number of content types that are searched in order to keep error messages down
 		    if ($dbreturn=="0"){
-			//drupal_set_message(t("No $ct found."), 'error');
+
 			$sResults++;
 		    }
 		   
@@ -380,7 +371,7 @@ function public_content_api_year_search(&$query=array()) {
     
     //if there are no results say so
     if($sResults>$total){
-	drupal_set_message(t("No Results for $yr"), 'error');
+	backdrop_set_message(t("No Results for $yr"), 'error');
     }
     
     return $result;    
